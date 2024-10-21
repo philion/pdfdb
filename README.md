@@ -10,10 +10,15 @@ For now, that means CSV or a SQLite DB.
 
 This is very much a **Work In Progress**.
 
-Current design builds an large table of page number, line number and text. These values are derived from constructing an image for each fully rendered page, applying OCR to the constructed page. 
+Current design builds an large table of page number, line number and text. These values are derived from constructing an image for each fully rendered page, applying OCR to the constructed page.
 
-This mostly works, but there are still a few bugs fully detecting line numbers. Future plans include fixing line numbering, dumping to sqlite DB file, better REDACTION handling and dumping 
+This mostly works, but there are still a few bugs fully detecting line numbers. Future plans include fixing line numbering, dumping to sqlite DB file, better REDACTION handling and dumping
 HOCR output.
+
+Once the bugs are fixed and valid datasets are written to the DB, a single-page-app dataset browser will be introduced with:
+- full text search
+- SQL support
+- sortable table display
 
 ## Usage
 
@@ -29,7 +34,7 @@ page, line, text
 
 To capture (using the include sample legal document):
 ```
-pdfdb.py docs/docs/chutkan-order-government-appendix-vol-i.pdf > chutkan-appendix.csv
+pdfdb.py docs/chutkan-order-government-appendix-vol-i.pdf > docs/chutkan-appendix.csv
 ```
 
 Given the size of a document, this might take a few minutes to run.

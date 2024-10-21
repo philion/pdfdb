@@ -93,7 +93,8 @@ def dump_csv(filename:str) -> None:
             while line:
                 line = line.strip()
                 line = line.replace("|", "I") # fix those vertical bars!
-                line_no = "?" # FIXME, enumerate?
+                line = line.replace('"','""') # esc quotes in text, for CSV
+                line_no = "?" # FIXME: if a line-no is missing, enumerate based on existing
 
                 match = re.match(r'^(\d+)', line)
                 if match:

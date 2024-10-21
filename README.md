@@ -21,6 +21,19 @@ Once the bugs are fixed and valid datasets are written to the DB, a single-page-
 - sortable table display
 
 ## Usage
+```
+usage: pdfdb.py [-h] [-t TYPE] [--pages PAGES] filename
+
+Parse PDF data into CSV, SQLite or PNG files
+
+positional arguments:
+  filename
+
+options:
+  -h, --help       show this help message and exit
+  -t, --type TYPE  Type to output: [csv], db or png
+  --pages PAGES    Range of pages to process, e.g 1-11,13,37-
+```
 
 Assuming you have `python3` installed,
 ```
@@ -38,3 +51,14 @@ pdfdb.py docs/chutkan-order-government-appendix-vol-i.pdf > docs/chutkan-appendi
 ```
 
 Given the size of a document, this might take a few minutes to run.
+
+## Work Log
+
+### Oct 21, 2024
+
+Satisfied with CSV production, I notice that a lot of pages aren't registering line numbers correctly, and the line numbers are treated as a seperate column. Exploring the details of the OCR results seems a good way to start looking into that. The next steps are:
+- generate HOCR from the page images
+- store page no + result and a clear format in a sqlite table
+- use std tools to explore
+
+Added CLI args for page ranges (very helpful for testing), and specifying the output type. The output file is generated in the same location as the input file, with a new file extension, as specified by `--type`.

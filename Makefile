@@ -43,3 +43,6 @@ clean:
 	rm -f discord.log
 	rm -f dpytest_*.dat
 	find . -type f -name ‘*.pyc’ -delete
+
+run:
+	./pdfdb.py docs/chutkan-order-government-appendix-vol-i.pdf --pages 1-10

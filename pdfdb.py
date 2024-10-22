@@ -207,10 +207,6 @@ def init_db(db: sqlite3.Cursor) -> None:
 def store_tokens(db: sqlite3.Cursor, tokens: list[Token]) -> None:
     """Store a collection of tokens in the db"""
     data = [token.tuple() for token in tokens]
-
-    for t in data:
-        print(">>>", t)
-
     db.executemany("INSERT INTO tokens VALUES(?, ?, ?, ?, ?, ?, ?)", data)
 
 
@@ -280,6 +276,7 @@ def write_db(db:sqlite3.Cursor, page_num: int, page_image:Image) -> None:
 def write_png(filename:str, page: int, page_image:Image):
     """Write a png file"""
     png_file = filename.replace(".pdf", f"-page{page}.png")
+    print("filename:", png_file)
     page_image.save(png_file)
 
 
@@ -290,7 +287,7 @@ def process_doc(filename: str, output: str, pages: list[Range] = None):
     db = None
     if output == "db":
         db_file = filename.replace(".pdf", ".db")
-        conn = sqlite3.connect(db_file)
+        conn = sqlite3.connect(db_file, autocommit=True)
         db = conn.cursor()
         init_db(db)
 
@@ -304,35 +301,30 @@ def process_doc(filename: str, output: str, pages: list[Range] = None):
                 if page_range.in_range(page_num):
                     in_range = True
                     break
-            if not in_range:
-                # skip!
-                log.debug("skipping out of range page: %s, %s", page_num, pages)
-                break
+        if in_range:
+            print(page_num, page.extract_text())
 
-        print(page_num, page.extract_text())
+            # This needs to be woven backtogether in to one full page for OCR
+            # assume everything is the same as the first image
+            page_image = None
 
-        # This needs to be woven backtogether in to one full page for OCR
-        # assume everything is the same as the first image
-        page_image = None
+            if len(page.images) == 0:
+                log.debug("no images on page %s, skipping", page_num)
+            elif len(page.images) == 1:
+                page_image = page.images[0].image
+            else:
+                page_image = multi_image_page(page)
 
-        if len(page.images) == 0:
-            log.debug("no images on page %s, skipping", page_num)
-        elif len(page.images) == 1:
-            page_image = page.images[0].image
-        else:
-            page_image = multi_image_page(page)
-
-        if page_image:
-            if output == "csv":
-                append_csv(filename, page_num, page_image)
-            elif output == "db":
-                write_db(db, page_num, page_image)
-            elif output == "png":
-                write_png(filename, page_num, page_image)
+            if page_image:
+                if output == "csv":
+                    append_csv(filename, page_num, page_image)
+                elif output == "db":
+                    write_db(db, page_num, page_image)
+                elif output == "png":
+                    write_png(filename, page_num, page_image)
 
     if db:
         db.close()
-        conn.close()
 
 
 def main() -> None:

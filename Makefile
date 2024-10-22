@@ -26,7 +26,7 @@ test: $(VENV)/bin/activate
 	$(PYTHON) -m unittest
 
 coverage: $(VENV)/bin/activate
-	$(PYTHON) -m coverage run -m unittest tests/test_*.py
+	$(PYTHON) -m coverage run -m unittest
 	$(PYTHON) -m coverage report
 
 htmlcov: $(VENV)/bin/activate
@@ -45,4 +45,4 @@ clean:
 	find . -type f -name ‘*.pyc’ -delete
 
 run:
-	./pdfdb.py docs/chutkan-order-government-appendix-vol-i.pdf --pages 1-10
+	./pdfdb.py docs/chutkan-order-government-appendix-vol-i.pdf --pages 1-10 -t db

@@ -34,7 +34,7 @@ htmlcov: $(VENV)/bin/activate
 	$(PYTHON) -m coverage html
 
 lint: $(VENV)/bin/activate
-	$(PYTHON) -m pylint */*.py
+	$(PYTHON) -m pylint *.py
 
 clean:
 	rm -rf __pycache__

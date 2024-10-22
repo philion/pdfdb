@@ -3,13 +3,15 @@
 
 #pylint: disable=too-many-arguments
 #pylint: disable=R0917
-
+#pylint: disable=R1732
+#pylint: disable=W0511
 
 import re
 import io
 import sqlite3
 import argparse
 import logging
+import sys
 
 from PIL import Image
 from pypdf import PdfReader, PageObject
@@ -20,9 +22,6 @@ log = logging.getLogger(__name__)
 
 def multi_image_page(page:PageObject) -> Image:
     """stitch together a multi-image page"""
-    #cols = 2
-    #rows = math.ceil(len(page.images) / cols)
-
     # first pass: page size!
     images = [None] * len(page.images)
     for img in page.images:
@@ -66,7 +65,6 @@ def multi_image_page(page:PageObject) -> Image:
 
 def append_csv(filename, page_num, page_image):
     """append page to a csv file"""
-    #csv_file = f"{pathlib.Path(filename).stem}.csv"
     csv_file = filename.replace(".pdf", ".csv", 1)
 
     with open(csv_file, "a", encoding="utf-8") as text_out:
@@ -95,6 +93,58 @@ def append_csv(filename, page_num, page_image):
 
             # next line
             line = text.readline()
+
+
+def clean_text(ocr_data: str) -> tuple[int, str]:
+    """Clean up OCRed text"""
+    ocr_data = ocr_data.replace("|", "I") # fix those vertical bars!
+    line_no = 0
+
+    match = re.match(r'^(\d+)', ocr_data)
+    if match:
+        # strip leading line numers from text
+        line_no = int(match.group(0)) # for later
+        ocr_data = ocr_data[match.end():].strip()
+    ocr_data = ocr_data.strip()
+
+    return line_no, ocr_data
+
+
+def should_ignore(line:str):
+    """Ignore meaningless metadata"""
+    return not line \
+        or line == "SEALED" \
+        or line.startswith("SUBJECT TO PROTECTIVE") \
+        or line.startswith("SCO-")
+
+
+def output_text(filename: str, page_image: Image):
+    """append page to a txt file"""
+
+    if filename == "CONSOLE":
+        text_out = sys.stdout
+    else:
+        text_out = open(filename, "a", encoding="utf-8")
+
+    data = pytesseract.image_to_string(page_image)
+
+    # iterate text, remove line numbers
+    text = io.StringIO(data)
+    line = text.readline()
+    while line:
+        line_no, line = clean_text(line)
+
+        # ignore certain lines
+        if should_ignore(line):
+            log.debug("Skipping %s %s", line_no, line)
+        else:
+            text_out.write(line + "\n")
+
+        # next line
+        line = text.readline()
+
+    if filename != "CONSOLE":
+        text_out.close()
 
 
 class Token:
@@ -207,7 +257,7 @@ def write_db(db:sqlite3.Cursor, page_num: int, page_image:Image) -> None:
 
 def write_png(filename:str, page: int, page_image:Image):
     """Write a png file"""
-    png_file = filename.replace(".pdf", f"-page{page}.png")
+    png_file = filename.replace(".png", f"-page{page}.png")
     print("filename:", png_file)
     page_image.save(png_file)
 
@@ -237,23 +287,26 @@ def process_page_images(page: PageObject) -> Image:
     return multi_image_page(page)
 
 
-def process_doc(filename: str, output: str, pages_arg: list[Range] = None):
+def process_doc(filename: str, output: str, pages_arg: list[Range], console: bool):
     """process a PDF doc"""
     reader = PdfReader(filename)
 
+    outfile = filename.replace(".pdf", f".{output}") if not console else "CONSOLE"
+
     db = None
     if output == "db":
-        db_file = filename.replace(".pdf", ".db")
-        conn = sqlite3.connect(db_file, autocommit=True)
+        conn = sqlite3.connect(outfile, autocommit=True)
         db = conn.cursor()
         init_db(db)
+
+    #TODO: Remove old file before run instead of forever appending.
 
     for page in reader.pages:
         page_num = page.page_number + 1 # 0-based numbering
         # check if this page in the arg list
         if in_page_range(page_num, pages_arg):
-            # print metadata, not stored anywhere
-            print(page_num, page.extract_text())
+            #print metadata, not stored anywhere
+            #print(page_num, page.extract_text())
 
             # The page needs to be woven backtogether in to one full page for OCR
             # assume everything is the same as the first image
@@ -263,12 +316,14 @@ def process_doc(filename: str, output: str, pages_arg: list[Range] = None):
                 continue
 
             match output:
+                case "txt":
+                    output_text(outfile, page_image)
                 case "csv":
-                    append_csv(filename, page_num, page_image)
+                    append_csv(outfile, page_num, page_image)
                 case "db":
                     write_db(db, page_num, page_image)
                 case "png":
-                    write_png(filename, page_num, page_image)
+                    write_png(outfile, page_num, page_image)
 
     if db:
         db.close()
@@ -282,9 +337,13 @@ def main() -> None:
                         description='Parse PDF data into CSV, SQLite or PNG files')
     parser.add_argument('filename')
     parser.add_argument('-t', '--type',
-                        default="csv",
+                        default="txt",
                         type=str,
-                        help="Type to output: [csv], db or png")
+                        help="Type to output: txt, csv, db or png")
+    parser.add_argument('-o', '--stdout',
+                        action='store_true',
+                        help="Pipe output to stdout. Not valid for some types: db, png"
+                        )
     parser.add_argument('--pages',
                         type=str,
                         help="Range of pages to process, e.g 1-11,13,37-")
@@ -296,7 +355,7 @@ def main() -> None:
         page_ranges = Range.from_args(args.pages)
 
     # process the doc
-    process_doc(args.filename, args.type, page_ranges)
+    process_doc(args.filename, args.type, page_ranges, args.stdout)
 
 
 if __name__ == '__main__':

@@ -173,7 +173,7 @@ class Token:
         return(self.page, self.x, self.y, self.w, self.h, self.conf, self.text)
 
 
-def page_to_tokens(page_obj: PageObject, page_image: Image):
+def page_to_tokens(page_num: int, page_image: Image):
     """Scan an image for text, with the bounding boxes and confidence"""
     tokens = []
     d = pytesseract.image_to_data(page_image, output_type=pytesseract.Output.DICT)
@@ -183,7 +183,7 @@ def page_to_tokens(page_obj: PageObject, page_image: Image):
            token = Token(
                text=d['text'][i],
                conf=d['conf'][i],
-               page=page_obj.page_number + 1, # to correct 0-based page numbers
+               page=page_num,
                x=d['left'][i],
                y=d['top'][i],
                w=d['width'][i],
@@ -202,6 +202,10 @@ def init_db(db: sqlite3.Cursor) -> None:
 def store_tokens(db: sqlite3.Cursor, tokens: list[Token]) -> None:
     """Store a collection of tokens in the db"""
     data = [token.tuple() for token in tokens]
+
+    for t in data:
+        print(">>>", t)
+
     db.executemany("INSERT INTO tokens VALUES(?, ?, ?, ?, ?, ?, ?)", data)
 
 
@@ -210,6 +214,7 @@ def dump_db(filename:str) -> None:
 
     db_file = filename + ".db"
     conn = sqlite3.connect(db_file)
+    conn.set_trace_callback(print)
     curs = conn.cursor()
     init_db(curs)
 
@@ -266,17 +271,10 @@ def parse_range(arg_val: str) -> list[Range]:
     return ranges
 
 
-def write_db(filename:str, page_num: int, page_image:Image) -> None:
+def write_db(db:sqlite3.Cursor, page_num: int, page_image:Image) -> None:
     """Write to the DB"""
     tokens = page_to_tokens(page_num, page_image)
-
-    #db_file = f"{pathlib.Path(filename).stem}.db"
-    db_file = filename.replace(".pdf", ".db", 1)
-
-    # fixme! clean up with generic PageWriter that has an initialize DB connection
-    con = sqlite3.connect(db_file)
-    curs = con.cursor()
-    store_tokens(curs, tokens)
+    store_tokens(db, tokens)
 
 
 def write_png(filename:str, page: int, page_image:Image):
@@ -287,6 +285,13 @@ def write_png(filename:str, page: int, page_image:Image):
 
 def process_doc(filename: str, output: str, pages: list[Range] = None):
     reader = PdfReader(filename)
+
+    db = None
+    if output == "db":
+        db_file = filename.replace(".pdf", ".db")
+        conn = sqlite3.connect(db_file)
+        db = conn.cursor()
+        init_db(db)
 
     for page in reader.pages:
         page_num = page.page_number + 1
@@ -320,24 +325,31 @@ def process_doc(filename: str, output: str, pages: list[Range] = None):
             if output == "csv":
                 append_csv(filename, page_num, page_image)
             elif output == "db":
-                write_db(filename, page_num, page_image)
+                write_db(db, page_num, page_image)
             elif output == "png":
                 write_png(filename, page_num, page_image)
 
+    if db:
+        db.close()
+        conn.close()
+
 
 def main() -> None:
+    # setup CLI arg parsing
     parser = argparse.ArgumentParser(
         prog='pdfdb.py',
         description='Parse PDF data into CSV, SQLite or PNG files')
     parser.add_argument('filename')
     parser.add_argument('-t', '--type', default="csv", type=str, help="Type to output: [csv], db or png")
     parser.add_argument('--pages', type=str, help="Range of pages to process, e.g 1-11,13,37-")
-    args = parser.parse_args()
 
+    # parse the args
+    args = parser.parse_args()
     page_ranges = None
     if args.pages:
         page_ranges = parse_range(args.pages)
 
+    # process the doc
     process_doc(args.filename, args.type, page_ranges)
 
 

@@ -22,7 +22,7 @@ Once the bugs are fixed and valid datasets are written to the DB, a single-page-
 
 ## Usage
 ```
-usage: pdfdb.py [-h] [-t TYPE] [--pages PAGES] filename
+usage: pdfdb.py [-h] [-t TYPE] [-o] [--pages PAGES] filename
 
 Parse PDF data into CSV, SQLite or PNG files
 
@@ -31,9 +31,9 @@ positional arguments:
 
 options:
   -h, --help       show this help message and exit
-  -t, --type TYPE  Type to output: [csv], db or png
-  --pages PAGES    Range of pages to process, e.g 1-11,13,37-
-```
+  -t, --type TYPE  Type to output: txt, csv, db or png
+  -o, --stdout     Pipe output to stdout. Not valid for some types: db, png
+  --pages PAGES    Range of pages to process, e.g 1-11,13,37-```
 
 Assuming you have `python3` installed,
 ```
